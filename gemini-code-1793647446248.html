@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивный опрос: Словообразование (6 класс)</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            overflow-y: auto; 
+        }
+        
+        .top-panel {
+            min-height: 150px;
+            max-height: 200px;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+        }
+        .top-panel h3 { margin: 0 0 10px 0; font-size: 20px; color: #3498db; }
+        .report-container {
+            flex: 1; background-color: #34495e; border-radius: 8px; padding: 10px;
+            overflow-y: auto; border: 1px solid #7f8c8d;
+        }
+        .log-entry {
+            display: flex; justify-content: space-between; padding: 8px 15px;
+            margin-bottom: 5px; background-color: #2c3e50; border-radius: 5px;
+            font-size: 16px; animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        .log-student { font-weight: bold; width: 120px; color: #f1c40f; }
+        .log-question { flex: 1; margin: 0 20px; font-style: italic; }
+        .log-result.correct { color: #2ecc71; font-weight: bold; width: 100px; text-align: right; }
+        .log-result.wrong { color: #e74c3c; font-weight: bold; width: 100px; text-align: right; }
+
+        .main-content { display: flex; flex: 1; flex-wrap: wrap; }
+
+        .left-panel {
+            flex: 1.2; min-width: 400px; padding: 30px; background-color: #ffffff;
+            border-right: 3px dashed #bdc3c7; display: flex; flex-direction: column;
+            justify-content: center;
+        }
+        .quiz-box { max-width: 600px; margin: 0 auto; width: 100%; opacity: 0.5; pointer-events: none; transition: opacity 0.3s; }
+        .quiz-box.active { opacity: 1; pointer-events: auto; }
+        .current-student-badge { display: inline-block; background-color: #e74c3c; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; margin-bottom: 15px; font-size: 18px; }
+        .question-text { font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #2980b9; }
+        .options-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; }
+        .option-label { background-color: #f8f9fa; border: 2px solid #bdc3c7; padding: 15px; border-radius: 8px; cursor: pointer; font-size: 18px; transition: all 0.2s; display: flex; align-items: center; }
+        .option-label:hover { background-color: #e9ecef; }
+        .option-label input { margin-right: 15px; transform: scale(1.5); }
+        .option-label.show-correct { background-color: #d4edda; border-color: #28a745; color: #155724; }
+        .option-label.show-wrong { background-color: #f8d7da; border-color: #dc3545; color: #721c24; }
+
+        .btn-answer { background-color: #3498db; width: 100%; padding: 15px; font-size: 20px; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        .btn-answer:hover:not(:disabled) { background-color: #2980b9; }
+        .btn-answer:disabled { cursor: not-allowed; }
+
+        .right-panel {
+            flex: 1; min-width: 400px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; background-color: #fcfcfc; position: relative; padding: 30px;
+        }
+        .wheel-wrapper { position: relative; width: 400px; height: 400px; margin-bottom: 30px; }
+        canvas { width: 100%; height: 100%; border-radius: 50%; border: 6px solid #34495e; box-shadow: 0 10px 25px rgba(0,0,0,0.15); transition: transform 4s cubic-bezier(0.1, 0.7, 0.1, 1); }
+        .pointer {
+            position: absolute; top: 50%; right: -20px; transform: translateY(-50%); width: 0; height: 0;
+            border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-right: 30px solid #e74c3c;
+            z-index: 10; filter: drop-shadow(-3px 3px 2px rgba(0,0,0,0.2));
+        }
+
+        .controls { display: flex; gap: 15px; }
+        button { padding: 12px 25px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button:active { transform: scale(0.95); }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-spin { background-color: #2ecc71; font-size: 22px; padding: 15px 40px; }
+        .btn-spin:hover:not(:disabled) { background-color: #27ae60; }
+        .btn-settings { background-color: #9b59b6; }
+        .btn-settings:hover { background-color: #8e44ad; }
+
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(44, 62, 80, 0.8); justify-content: center; align-items: center;
+            z-index: 1000; opacity: 0; transition: opacity 0.3s ease;
+        }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .modal-content {
+            background: white; padding: 40px; border-radius: 15px; text-align: center;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2); min-width: 350px; transform: translateY(-20px); transition: transform 0.3s ease;
+        }
+        .modal-overlay.show .modal-content { transform: translateY(0); }
+        .modal-content h3 { margin-top: 0; color: #2c3e50; font-size: 24px;}
+        .modal-content input[type="number"] { font-size: 20px; padding: 10px; width: 100px; text-align: center; border: 2px solid #bdc3c7; border-radius: 8px; margin: 20px 0; }
+        .winner-text { font-size: 32px; font-weight: bold; color: #e74c3c; margin: 30px 0; }
+        .btn-close { background-color: #95a5a6; margin-top: 10px; }
+        .btn-reset { background-color: #e67e22; margin-bottom: 10px; width: 100%;}
+    </style>
+</head>
+<body>
+    <div class="top-panel">
+        <h3>Журнал ответов</h3>
+        <div class="report-container" id="report-log"></div>
+    </div>
+
+    <div class="main-content">
+        <div class="left-panel">
+            <div class="quiz-box" id="quiz-box">
+                <div class="current-student-badge" id="student-badge">Ожидание...</div>
+                <div class="question-text" id="question-text">Крутите колесо, чтобы выбрать ученика</div>
+                <div class="options-list" id="options-container"></div>
+                <button class="btn-answer" id="btn-answer" onclick="checkAnswer()" disabled>Выберите ответ</button>
+            </div>
+            <div id="quiz-finished" style="display: none; text-align: center;">
+                <h2 style="color: #27ae60;">Все вопросы пройдены!</h2>
+                <button class="btn-settings" onclick="openSettings()">Начать заново</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="wheel-wrapper">
+                <div class="pointer"></div>
+                <canvas id="wheel" width="800" height="800"></canvas>
+            </div>
+            <div class="controls">
+                <button class="btn-spin" id="btn-spin" onclick="spinWheel()">Крутить колесо!</button>
+                <button class="btn-settings" onclick="openSettings()">⚙️ Настройки</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Настройки урока</h3>
+            <p>Количество учеников в классе:</p>
+            <input type="number" id="student-count" value="35" min="2" max="100">
+            <br>
+            <button class="btn-reset" onclick="applySettings()">🔄 Сбросить колесо, журнал и вопросы</button>
+            <br>
+            <button class="btn-close" onclick="closeSettings()">Закрыть</button>
+        </div>
+    </div>
+
+    <div id="winner-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Внимание!</h3>
+            <div class="winner-text" id="winner-text">Ученик № X идет к доске!</div>
+            <button class="btn-spin" onclick="closeWinnerModal()">К вопросу ❯</button>
+        </div>
+    </div>
+
+    <script>
+        const questionsDB = [
+            { q: "Какая часть слова содержит его главное лексическое значение?", options: ["Приставка", "Корень", "Суффикс", "Окончание"], correct: 1 },
+            { q: "Каким способом образовано слово «подснежник»?", options: ["Приставочным", "Суффиксальным", "Приставочно-суффиксальным", "Сложением"], correct: 2 },
+            { q: "Служит для образования новых слов и стоит перед корнем:", options: ["Окончание", "Суффикс", "Приставка", "Основа"], correct: 2 },
+            { q: "Какое из этих слов образовано сложением основ?", options: ["Снегопад", "Перелет", "Заречье", "Грибок"], correct: 0 },
+            { q: "Изменяемая часть слова, которая служит для связи слов в предложении – это:", options: ["Корень", "Суффикс", "Окончание", "Приставка"], correct: 2 },
+            { q: "Каким способом образовано слово «лесок»?", options: ["Приставочным", "Суффиксальным", "Сложением", "Бессуффиксным"], correct: 1 },
+            { q: "В каком из этих слов нулевое окончание?", options: ["Дом", "Окно", "Книга", "Синий"], correct: 0 },
+            { q: "Что такое основа слова?", options: ["Часть слова без корня", "Часть слова без окончания", "Только приставка и корень", "Все слово целиком"], correct: 1 },
+            { q: "Каким способом образовано слово «МГУ»?", options: ["Сложением основ", "Бессуффиксным", "Аббревиация", "Приставочным"], correct: 2 },
+            { q: "Какое слово образовано бессуффиксным способом?", options: ["Переход", "Пришкольный", "Садовый", "Пароход"], correct: 0 },
+            { q: "В каком слове есть приставка ЗА-?", options: ["Заяц", "Заречье", "Замок", "Заря"], correct: 1 },
+            { q: "Каким способом образовано слово «прибежать»?", options: ["Суффиксальным", "Приставочным", "Приставочно-суффиксальным", "Сложением"], correct: 1 },
+            { q: "Найди слово, которое состоит из корня, суффикса и окончания:", options: ["Подоконник", "Зимний", "Выход", "Стул"], correct: 1 },
+            { q: "В каком слове НЕТ суффикса?", options: ["Стол", "Столик", "Грибок", "Домик"], correct: 0 },
+            { q: "Что изучает раздел языка «Морфемика»?", options: ["Звуки и буквы", "Знаки препинания", "Части речи", "Строение слова (его части)"], correct: 3 }
+        ];
+
+        let students = [];
+        let currentRotation = 0;
+        let isSpinning = false;
+        
+        let currentQuestionIndex = 0;
+        let activeStudent = null;
+        let answeredCurrentQuestion = true;
+
+        window.onload = () => { initApp(35); };
+
+        function initApp(numStudents) {
+            // Создаем массив и перемешиваем его случайным образом
+            let arr = Array.from({length: numStudents}, (_, i) => i + 1);
+            for (let i = arr.length - 1; i > 0; i--) {
+                const randomBuffer = new Uint32Array(1);
+                window.crypto.getRandomValues(randomBuffer);
+                const j = Math.floor((randomBuffer[0] / (0xffffffff + 1)) * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            students = arr;
+
+            currentRotation = 0;
+            const canvas = document.getElementById('wheel');
+            canvas.style.transition = 'none';
+            canvas.style.transform = `rotate(0deg)`;
+            void canvas.offsetWidth;
+            canvas.style.transition = 'transform 4s cubic-bezier(0.1, 0.7, 0.1, 1)';
+            
+            currentQuestionIndex = 0;
+            activeStudent = null;
+            answeredCurrentQuestion = true;
+            
+            document.getElementById('report-log').innerHTML = '';
+            document.getElementById('quiz-finished').style.display = 'none';
+            document.getElementById('quiz-box').style.display = 'block';
+            
+            drawWheel();
+            lockQuiz();
+        }
+
+        function drawWheel() {
+            const canvas = document.getElementById('wheel');
+            const ctx = canvas.getContext('2d');
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (students.length === 0) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, cx, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ecf0f1';
+                ctx.fill();
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = 'bold 40px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('Класс опрошен!', cx, cy);
+                return;
+            }
+            
+            const sliceAngle = (2 * Math.PI) / students.length;
+
+            for (let i = 0; i < students.length; i++) {
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, cx, i * sliceAngle, (i + 1) * sliceAngle);
+                
+                // Цвет остается привязанным к самому числу ученика, чтобы сектора не меняли цвет при удалении
+                const hue = (students[i] * 137.508) % 360;
+                ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(i * sliceAngle + sliceAngle / 2);
+                ctx.textAlign = "right";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#ffffff";
+                ctx.font = `bold ${students.length > 30 ? 24 : 34}px sans-serif`;
+                ctx.shadowColor = "rgba(0,0,0,0.6)";
+                ctx.shadowBlur = 4;
+                ctx.fillText(students[i], cx - 30, 0);
+                ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+            if (isSpinning || students.length === 0) return;
+            
+            if (currentQuestionIndex >= questionsDB.length) {
+                alert("Вопросы закончились!");
+                return;
+            }
+            
+            if (!answeredCurrentQuestion) {
+                alert("Сначала ответьте на текущий вопрос на левой панели!");
+                return;
+            }
+
+            isSpinning = true;
+            document.getElementById('btn-spin').disabled = true;
+
+            // Криптографический генератор случайных чисел для выбора ученика
+            const randomBuffer = new Uint32Array(1);
+            window.crypto.getRandomValues(randomBuffer);
+            const randFloat = randomBuffer[0] / (0xffffffff + 1);
+            const randIndex = Math.floor(randFloat * students.length);
+            
+            activeStudent = students[randIndex];
+
+            const sliceAngleDeg = 360 / students.length;
+            
+            // Случайное смещение стрелки внутри сектора (чтобы не всегда била ровно в центр)
+            const randomOffset = (Math.random() * 0.7 - 0.35) * sliceAngleDeg;
+            const currentSliceCenterDeg = (randIndex * sliceAngleDeg) + (sliceAngleDeg / 2) + randomOffset;
+            
+            // Случайное количество полных оборотов (от 5 до 8)
+            const randomSpinsCount = 5 + Math.floor(Math.random() * 4);
+            const extraSpins = 360 * randomSpinsCount;
+            
+            const targetRotation = currentRotation + extraSpins + (360 - currentSliceCenterDeg) - (currentRotation % 360);
+
+            const canvas = document.getElementById('wheel');
+            canvas.style.transform = `rotate(${targetRotation}deg)`;
+            currentRotation = targetRotation;
+
+            setTimeout(() => {
+                isSpinning = false;
+                document.getElementById('btn-spin').disabled = false;
+                showWinnerModal(activeStudent, randIndex);
+            }, 4000);
+        }
+
+        function showWinnerModal(winnerNumber, arrayIndex) {
+            document.getElementById('winner-text').innerText = `Ученик № ${winnerNumber} идет к доске!`;
+            const modal = document.getElementById('winner-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+            
+            students.splice(arrayIndex, 1);
+        }
+
+        function closeWinnerModal() {
+            const modal = document.getElementById('winner-modal');
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                
+                const canvas = document.getElementById('wheel');
+                canvas.style.transition = 'none';
+                canvas.style.transform = `rotate(0deg)`;
+                currentRotation = 0;
+                void canvas.offsetWidth; 
+                canvas.style.transition = 'transform 4s cubic-bezier(0.1, 0.7, 0.1, 1)';
+                drawWheel();
+
+                loadQuestion();
+            }, 300);
+        }
+
+        function lockQuiz() {
+            document.getElementById('quiz-box').classList.remove('active');
+            document.getElementById('student-badge').innerText = "Ожидание вращения колеса...";
+            document.getElementById('student-badge').style.backgroundColor = "#e74c3c";
+            document.getElementById('question-text').innerText = "Крутите колесо, чтобы выбрать ученика";
+            document.getElementById('options-container').innerHTML = '';
+            
+            const btn = document.getElementById('btn-answer');
+            btn.disabled = true;
+            btn.innerText = "Сначала крутите колесо ❯";
+            btn.style.backgroundColor = "#bdc3c7";
+        }
+
+        function loadQuestion() {
+            if (currentQuestionIndex >= questionsDB.length) {
+                document.getElementById('quiz-box').style.display = 'none';
+                document.getElementById('quiz-finished').style.display = 'block';
+                return;
+            }
+
+            answeredCurrentQuestion = false;
+            const quizBox = document.getElementById('quiz-box');
+            quizBox.classList.add('active');
+            
+            const badge = document.getElementById('student-badge');
+            badge.innerText = `К доске: Ученик № ${activeStudent}`;
+            badge.style.backgroundColor = "#27ae60";
+
+            const btn = document.getElementById('btn-answer');
+            btn.disabled = false;
+            btn.innerText = "Ответить на вопрос";
+            btn.style.backgroundColor = "#3498db";
+
+            const qData = questionsDB[currentQuestionIndex];
+            document.getElementById('question-text').innerText = `Вопрос ${currentQuestionIndex + 1}/15: ${qData.q}`;
+            
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.innerHTML = '';
+
+            qData.options.forEach((opt, index) => {
+                const label = document.createElement('label');
+                label.className = 'option-label';
+                label.id = `label-opt-${index}`;
+                
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'quiz-option';
+                radio.value = index;
+
+                label.appendChild(radio);
+                label.appendChild(document.createTextNode(opt));
+                optionsContainer.appendChild(label);
+            });
+        }
+
+        function checkAnswer() {
+            const selected = document.querySelector('input[name="quiz-option"]:checked');
+            if (!selected) {
+                alert("Пожалуйста, выберите вариант ответа!");
+                return;
+            }
+
+            const selectedVal = parseInt(selected.value);
+            const qData = questionsDB[currentQuestionIndex];
+            const isCorrect = (selectedVal === qData.correct);
+
+            document.querySelectorAll('input[name="quiz-option"]').forEach(rad => rad.disabled = true);
+
+            document.getElementById(`label-opt-${qData.correct}`).classList.add('show-correct');
+            if (!isCorrect) {
+                document.getElementById(`label-opt-${selectedVal}`).classList.add('show-wrong');
+            }
+
+            logResult(activeStudent, qData.q, isCorrect);
+
+            answeredCurrentQuestion = true;
+            currentQuestionIndex++;
+
+            const btn = document.getElementById('btn-answer');
+            btn.innerText = "Ответ принят. Крутите колесо! ❯";
+            btn.style.backgroundColor = "#95a5a6";
+            btn.disabled = true;
+
+            if (currentQuestionIndex >= questionsDB.length) {
+                 setTimeout(() => {
+                    document.getElementById('quiz-box').style.display = 'none';
+                    document.getElementById('quiz-finished').style.display = 'block';
+                 }, 2000);
+            }
+        }
+
+        function logResult(studentNum, questionText, isCorrect) {
+            const logContainer = document.getElementById('report-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            entry.innerHTML = `
+                <div class="log-student">Ученик № ${studentNum}</div>
+                <div class="log-question">${questionText}</div>
+                <div class="log-result ${isCorrect ? 'correct' : 'wrong'}">${isCorrect ? 'Верно' : 'Неверно'}</div>
+            `;
+            logContainer.prepend(entry);
+        }
+
+        function openSettings() {
+            if (isSpinning) return;
+            const modal = document.getElementById('settings-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+
+        function closeSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.remove('show');
+            setTimeout(() => modal.style.display = 'none', 300);
+        }
+
+        function applySettings() {
+            if(confirm("Внимание! Это сбросит весь журнал ответов и начнет вопросы сначала. Продолжить?")) {
+                const inputVal = parseInt(document.getElementById('student-count').value);
+                const num = (isNaN(inputVal) || inputVal < 2) ? 2 : (inputVal > 100 ? 100 : inputVal);
+                initApp(num);
+                closeSettings();
+            }
+        }
+    </script>
+</body>
+</html>
